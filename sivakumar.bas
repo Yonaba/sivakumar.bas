@@ -33,32 +33,27 @@ Public Function sivakumar_onset(rng As Range, Optional rf_thsld As Double = 1, O
     Dim i As Integer, j As Integer, spl As Integer, cur_spl As Integer, n30 As Integer
     Dim cur_roll As Double
     
-    If rng(n_start, 1) >= 20 Then
-      roll20 = n_start
-    ElseIf rng(n_start + 1) >= 20 Or (rng(n_start) + rng(n_start + 1)) >= 20 Then
-      roll20 = n_start + 1
-    Else
-      For i = (n_start + 2) To n
-          cur_roll = rng(i, 1) + rng(i - 1, 1) + rng(i - 2, 1)
-          spl = 0
-          cur_spl = 0
-          If (cur_roll >= 20) Then
-              n30 = WorksheetFunction.Min(i + 30, n)
-              For j = i + 1 To n30
-                  If rng(j, 1) <= rf_thsld Then
-                      cur_spl = cur_spl + 1
-                  Else
-                      spl = WorksheetFunction.Max(spl, cur_spl)
-                      cur_spl = 0
-                  End If
-              Next j
-              If spl <= dry_spell Then
-                  roll20 = i
-                  Exit For
-              End If
-          End If
-      Next i
-    End If
+	For i = (n_start + 2) To n
+		cur_roll = rng(i, 1) + rng(i - 1, 1) + rng(i - 2, 1)
+		spl = 0
+		cur_spl = 0
+		If (cur_roll >= 20) Then
+			n30 = WorksheetFunction.Min(i + 30, n)
+			For j = i + 1 To n30
+				If rng(j, 1) <= rf_thsld Then
+					cur_spl = cur_spl + 1
+				Else
+					spl = WorksheetFunction.Max(spl, cur_spl)
+					cur_spl = 0
+				End If
+			Next j
+			If spl <= dry_spell Then
+				roll20 = i
+				Exit For
+			End If
+		End If
+	Next i
+	
     sivakumar_onset = roll20
 End Function
 
