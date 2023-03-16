@@ -1,6 +1,6 @@
 Attribute VB_Name = "sivakumar"
 '  sivakumar.bas
-'    Version: 1.0.093020
+'    Version: 2.0.03.14.2023
 '    A VBA module to calculate the rainy season onset/ending dates and the count of occurences of dry spells
 '    R.Yonaba <roland.yonaba@gmail.com>
 '    License: MIT-LICENSE <https://opensource.org/licenses/MIT>
@@ -33,27 +33,32 @@ Public Function sivakumar_onset(rng As Range, Optional rf_thsld As Double = 1, O
     Dim i As Integer, j As Integer, spl As Integer, cur_spl As Integer, n30 As Integer
     Dim cur_roll As Double
     
-	For i = (n_start + 2) To n
-		cur_roll = rng(i, 1) + rng(i - 1, 1) + rng(i - 2, 1)
-		spl = 0
-		cur_spl = 0
-		If (cur_roll >= 20) Then
-			n30 = WorksheetFunction.Min(i + 30, n)
-			For j = i + 1 To n30
-				If rng(j, 1) <= rf_thsld Then
-					cur_spl = cur_spl + 1
-				Else
-					spl = WorksheetFunction.Max(spl, cur_spl)
-					cur_spl = 0
-				End If
-			Next j
-			If spl <= dry_spell Then
-				roll20 = i
-				Exit For
-			End If
-		End If
-	Next i
-	
+    If rng(n_start, 1) >= 20 Then
+      roll20 = n_start
+    ElseIf rng(n_start + 1) >= 20 Or (rng(n_start) + rng(n_start + 1)) >= 20 Then
+      roll20 = n_start + 1
+    Else
+      For i = (n_start + 2) To n
+          cur_roll = rng(i, 1) + rng(i - 1, 1) + rng(i - 2, 1)
+          spl = 0
+          cur_spl = 0
+          If (cur_roll >= 20) Then
+              n30 = WorksheetFunction.Min(i + 30, n)
+              For j = i + 1 To n30
+                  If rng(j, 1) <= rf_thsld Then
+                      cur_spl = cur_spl + 1
+                  Else
+                      spl = WorksheetFunction.Max(spl, cur_spl)
+                      cur_spl = 0
+                  End If
+              Next j
+              If spl <= dry_spell Then
+                  roll20 = i
+                  Exit For
+              End If
+          End If
+      Next i
+    End If
     sivakumar_onset = roll20
 End Function
 
@@ -94,15 +99,16 @@ Public Function sivakumar_ending(rng As Range, Optional rf_thsld As Double = 1, 
     sivakumar_ending = offset
 End Function
 
-'Function count_dry_spells(rng, spell_length, rf_thsld = 1, onset = 1, offset = 365 or 366)
+'Function count_dry_spells(rng, spell_length, rf_thsld = 1, exact = False, onset = 1, offset = 365 or 366)
 'Counts the number of occurrence of dry spells of a given duration
 'Argument rng (required) (range): an array of 365 (or 366) daily rainfall values
 'Argument spell_length (required) (integer): the dry spells length for which the count of occurrences is required
 'Argument rf_thsld (optional) (double): minimum rainfall threshold. Defaults to 1 mm
+'Argument exact (optional) (Boolean): Whether or the given dry spell_length duration is considered as exact or at minimum. Defaults to FALSE
 'Argument onset (optional) (integer): the starting date (in the year) from which dry spells are considered. Typically, should be the rainy season onset. Defaults to 1 (January 1st).
 'Argument ending (optional) (integer): the ending date (in the year) up to which dry spells are considered. Typically, should be the rainy season ending. Defaults to 365 (or 366) (December 31st).
 'Returns (integer): the number of occurrences of dry spells of a given duration
-Public Function count_dry_spells(rng As Range, spell_length As Integer, Optional rf_thsld As Double = 1, Optional onset As Integer = 1, Optional ending As Integer = 365) As Integer
+Public Function count_dry_spells(rng As Range, spell_length As Integer, Optional rf_thsld As Double = 1, Optional exact As Boolean = False, Optional onset As Integer = 1, Optional ending As Integer = 365) As Integer
     Dim n As Integer, n_start As Integer, count As Integer
     n = WorksheetFunction.CountA(rng)
     
@@ -121,7 +127,11 @@ Public Function count_dry_spells(rng As Range, spell_length As Integer, Optional
       If rng(i, 1) <= rf_thsld Then
         cur_spl = cur_spl + 1
       Else
-        count = IIf(cur_spl = spell_length, count + 1, count)
+        If (exact) Then
+            count = IIf(cur_spl = spell_length, count + 1, count)
+        Else
+            count = IIf(cur_spl >= spell_length, count + 1, count)
+        End If
         cur_spl = 0
       End If
     Next i
@@ -162,3 +172,47 @@ Public Function longest_dry_spell(rng As Range, Optional rf_thsld As Double = 1,
     
     longest_dry_spell = max_len
 End Function
+
+'Function index_dry_spell(rng, spell_length, rf_thsld = 1, onset = 1, offset = 365 or 366, sep = "/")
+'Compute the onset dates of dry spells longer than a minimum duration
+'Argument rng (required) (range): an array of 365 (or 366) daily rainfall values
+'Argument spell_length (required) (integer): the dry spell length for which the onset dates are evaluated
+'Argument rf_thsld (optional) (double): minimum rainfall threshold. Defaults to 1 mm
+'Argument onset (optional) (integer): the starting date (in the year) from which dry spells are considered. Typically, should be the rainy season onset. Defaults to 1 (January 1st).
+'Argument ending (optional) (integer): the ending date (in the year) up to which dry spells are considered. Typically, should be the rainy season ending. Defaults to 365 (or 366) (December 31st).
+'Argument sep (optional) (string): a separator used to concatenate the dates found.
+'Returns (string): the onset dates concatenated
+
+Public Function index_dry_spell(rng As Range, spell_length As Integer, Optional rf_thsld As Double = 1, Optional onset As Integer = 1, Optional ending As Integer = 365, Optional sep As String = "/") As String
+    Dim n As Integer, n_start As Integer, index As Integer
+    Dim s As String
+    
+    n = WorksheetFunction.CountA(rng)
+    
+    If (n = 366) Then
+        ending = n
+    ElseIf (n <> 365) Then
+        'MsgBox "The given range should feature 365 (or 366) values.", vbExclamation, "Not enough values"
+        index = CVErr(xlErrNA)
+    End If
+    
+    index = 0
+    s = ""
+    
+    Dim i As Integer, cur_spl As Integer
+    cur_spl = 0
+    For i = onset To ending
+      If rng(i, 1) <= rf_thsld Then
+        cur_spl = cur_spl + 1
+      Else
+        index = IIf(cur_spl = spell_length, i - cur_spl, -1)
+        If index > 0 Then
+            s = s & index & sep
+        End If
+        cur_spl = 0
+      End If
+    Next i
+
+    index_dry_spell = s
+End Function
+
